@@ -1,0 +1,6 @@
+/.idea/
+/vendor/
+/config.php
+/*.png
+*.md
+*.html
