@@ -12,7 +12,7 @@
 
 require_once __DIR__ . '/vendor/autoload.php';
 
-class T  extends \cebe\markdown\GithubMarkdown
+class T extends \cebe\markdown\GithubMarkdown
 {
     protected function renderImage($block)
     {

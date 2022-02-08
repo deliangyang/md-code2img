@@ -48,25 +48,23 @@ $noCodeBlockContent = preg_replace('#(```[^\n]+\n)(.+)(```)#sUm', '', $content);
 preg_match_all('#`([^`]+)`#', $noCodeBlockContent, $codeMatches);
 foreach ($codeMatches[0] as $k => $codeMatch) {
     if (isset($argv[2])) {
-        $content = str_replace($codeMatch, '<code style="color:red;">' . $codeMatches[1][$k] .'</code>', $content);
+        $content = str_replace($codeMatch, '<code style="color:red;">' . $codeMatches[1][$k] . '</code>', $content);
     } else {
         $content = str_replace($codeMatch, $codeMatches[1][$k], $content);
     }
 }
-// var_dump($matchImages);
-//var_dump($matches);
-//exit;
+
 foreach ($matches[2] as $k => $match) {
     file_put_contents('/tmp/' . $k . '.txt', $match);
     $filename = $k . '-' . md5($match);
-
+    $localFileName = 'image/' . $k . '-' . md5($match) . '.png';
 
     $key = $filename . '.png';
-    if (!file_exists($key)) {
-        echo `carbon-now /tmp/$k.txt -t $filename -h`;
+    if (!file_exists($localFileName)) {
+        echo `carbon-now /tmp/$k.txt -t $localFileName -h`;
         echo `rm -rf /tmp/$k.txt`;
         $token = $auth->uploadToken($bucket, $keyPrefix . $key);
-        list($ret, $err) = $uploadManager->putFile($token, $keyPrefix . $key, $key);
+        list($ret, $err) = $uploadManager->putFile($token, $keyPrefix . $key, $localFileName);
     }
 
     $content = str_replace(
