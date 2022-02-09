@@ -11,6 +11,7 @@ $config = require_once __DIR__ . '/config.php';
 $accessKey = $config['accessKey'];
 $secretKey = $config['secretKey'];
 $bucket = $config['bucket'];
+$domain = $config['domain'];
 
 $auth = new Auth($accessKey, $secretKey);
 $uploadManager = new UploadManager();
@@ -52,7 +53,7 @@ if (3 === count($matchImages)) {
 
         $content = str_replace(
             $matchImages[0][$k],
-            sprintf('![%s](%s)', $key, 'http://image.sourcedev.cc/' . $key),
+            sprintf('![%s](%s)', $key, $domain . $key),
             $content
         );
     }
@@ -86,7 +87,7 @@ foreach ($matches[2] as $k => $match) {
 
     $content = str_replace(
         $matches[1][$k] . $match . $matches[3][$k],
-        sprintf('![%s](%s)', $filename, 'http://image.sourcedev.cc/tmp/download/' . $key),
+        sprintf('![%s](%s)', $filename, $domain . 'tmp/download/' . $key),
         $content
     );
 }
