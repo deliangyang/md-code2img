@@ -16,7 +16,17 @@ $uploadManager = new UploadManager();
 
 $keyPrefix = 'tmp/download/';
 
-$content = file_get_contents($argv[1]);
+$srcFilename = $argv[1];
+
+$content = file_get_contents($srcFilename);
+
+// 包含时序图
+if (preg_match('#```mermaid#', $content)) {
+    $dirname = dirname($srcFilename);
+    `markdown_mermaid_to_images -m $srcFilename -o $dirname`;
+
+    $content = file_get_contents($srcFilename);
+}
 
 preg_match_all('#(```[^\n]+\n)(.+)(```)#sUm', $content, $matches);
 
@@ -29,15 +39,19 @@ if (3 === count($matchImages)) {
             continue;
         }
         $dirname = dirname($matchImage);
-        $key = str_replace('/', '', str_replace($dirname, '', $matchImage));
-        $filename = dirname($argv[1]) . DIRECTORY_SEPARATOR . $matchImage;
+        if ($dirname !== '.') {
+            $key = $keyPrefix . str_replace('/', '', str_replace($dirname, '', $matchImage));
+        } else {
+            $key = $keyPrefix . $matchImage;
+        }
+        $filename = dirname($srcFilename) . DIRECTORY_SEPARATOR . $matchImage;
 
-        $token = $auth->uploadToken($bucket, $keyPrefix . $key);
-        list($ret, $err) = $uploadManager->putFile($token, $keyPrefix . $key, $filename);
+        $token = $auth->uploadToken($bucket, $key);
+        list($ret, $err) = $uploadManager->putFile($token, $key, $filename);
 
         $content = str_replace(
             $matchImages[0][$k],
-            sprintf('![%s](%s)', $key, 'http://image.sourcedev.cc/tmp/download/' . $key),
+            sprintf('![%s](%s)', $key, 'http://image.sourcedev.cc/' . $key),
             $content
         );
     }
@@ -57,14 +71,16 @@ foreach ($codeMatches[0] as $k => $codeMatch) {
 foreach ($matches[2] as $k => $match) {
     file_put_contents('/tmp/' . $k . '.txt', $match);
     $filename = $k . '-' . md5($match);
-    $localFileName = 'image/' . $k . '-' . md5($match) . '.png';
+    $localFileName = 'image/' . $k . '-' . md5($match);
 
     $key = $filename . '.png';
-    if (!file_exists($localFileName)) {
+    $localFileNameKey = $localFileName . '.png';
+    var_dump('current local file: ' . $localFileNameKey);
+    if (!file_exists($localFileNameKey)) {
         echo `carbon-now /tmp/$k.txt -t $localFileName -h`;
         echo `rm -rf /tmp/$k.txt`;
         $token = $auth->uploadToken($bucket, $keyPrefix . $key);
-        list($ret, $err) = $uploadManager->putFile($token, $keyPrefix . $key, $localFileName);
+        list($ret, $err) = $uploadManager->putFile($token, $keyPrefix . $key, $localFileNameKey);
     }
 
     $content = str_replace(
