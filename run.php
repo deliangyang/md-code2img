@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/vendor/autoload.php';
 
+use cebe\markdown\GithubMarkdown;
 use Qiniu\Auth;
 use Qiniu\Storage\UploadManager;
 
@@ -90,7 +91,12 @@ foreach ($matches[2] as $k => $match) {
     );
 }
 
-file_put_contents('b.md', $content);
+$parser = new GithubMarkdown();
+$content = $parser->parse($content);
+$content = str_replace('(<em>)', '(*)', $content);
+$content = str_replace('(</em>)', '(*)', $content);
 
-`php a.php b.md > b.html`;
+$html = file_get_contents('extra/template.html');
+
+echo str_replace('__REPLACE__', $content, $html);
 
