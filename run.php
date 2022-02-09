@@ -98,5 +98,6 @@ $content = str_replace('(</em>)', '(*)', $content);
 
 $html = file_get_contents('extra/template.html');
 
-echo str_replace('__REPLACE__', $content, $html);
+$html = str_replace('__REPLACE__', $content, $html);
 
+file_put_contents('index.html', $html);
