@@ -4,4 +4,5 @@
 /*.png
 *.md
 *.html
+!/extra/template.html
 /image/
