@@ -29,6 +29,7 @@ if (preg_match('#```mermaid#', $content)) {
     `markdown_mermaid_to_images -m $srcFilename -o $dirname`;
 
     $content = file_get_contents($srcFilename);
+    file_put_contents($srcFilename, $originContent);
 }
 
 preg_match_all('#(```[^\n]+\n)(.+)(```)#sUm', $content, $matches);
@@ -103,4 +104,3 @@ $html = file_get_contents('extra/template.html');
 $html = str_replace('__REPLACE__', $content, $html);
 
 file_put_contents('index.html', $html);
-file_put_contents($srcFilename, $originContent);
