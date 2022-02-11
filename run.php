@@ -22,6 +22,7 @@ $srcFilename = $argv[1];
 
 $content = file_get_contents($srcFilename);
 
+$originContent = $content;
 // 包含时序图
 if (preg_match('#```mermaid#', $content)) {
     $dirname = dirname($srcFilename);
@@ -102,3 +103,4 @@ $html = file_get_contents('extra/template.html');
 $html = str_replace('__REPLACE__', $content, $html);
 
 file_put_contents('index.html', $html);
+file_put_contents($srcFilename, $originContent);
