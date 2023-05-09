@@ -53,7 +53,38 @@ class Code2Image
             $this->mTemp()
         );
         $this->log($command);
-        return `$command`;
+        $output = `$command`;
+        $this->log($output);
+
+        $content = file_get_contents($this->mTemp());
+        if (!preg_match_all('#\!\[([^\]]+)\]\(([^\)\s]+).*?\)#', $content, $matchImages)) {
+            return;
+        } else if (count($matchImages) !== 3) {
+            return;
+        }
+        foreach ($matchImages[2] as $k => $matchImage) {
+            if (
+                false !== strpos($matchImage, 'http://')
+                || false !== strpos($matchImage, 'https://')
+            ) {
+                continue;
+            }
+            $dirname = dirname($matchImage);
+            if ($dirname !== '.') {
+                $key = 'data/' . str_replace('./', '', str_replace($dirname, '', $matchImage));
+            } else {
+                $key = 'data/' . str_replace('./', '', $matchImage);
+            }
+            $this->log($dirname);
+            $this->log($key);
+            $this->log($matchImages[0][$k]);
+            $content = str_replace(
+                $matchImages[0][$k],
+                sprintf('![%s](%s)', $key, $this->upload($key, $key)),
+                $content
+            );
+        }
+        file_put_contents($this->mTemp(), $content);
     }
 
     protected function mTemp(): string
@@ -132,37 +163,5 @@ class Code2Image
     }
 }
 
-
 $code2Image = new Code2Image($argv[1]);
 echo $code2Image->outputHTML();
-// $keyPrefix = 'tmp/download/';
-
-// $srcFilename = $argv[1];
-
-// $content = file_get_contents($srcFilename);
-
-// $originContent = $content;
-// // 包含时序图
-// if (preg_match('#```mermaid#', $content)) {
-//     $dirname = dirname($srcFilename);
-//     `markdown_mermaid_to_images -m $srcFilename -o $dirname`;
-
-//     $content = file_get_contents($srcFilename);
-//     file_put_contents($srcFilename, $originContent);
-// }
-
-// preg_match_all('#(```[^\n]+\n)(.+)(```)#sUm', $content, $matches);
-
-// preg_match_all('#!\[([^\]]+)\]\(([^\)]+)\)#', $content, $matchImages);
-
-
-// $noCodeBlockContent = preg_replace('#(```[^\n]+\n)(.+)(```)#sUm', '', $content);
-
-// preg_match_all('#`([^`]+)`#', $noCodeBlockContent, $codeMatches);
-// foreach ($codeMatches[0] as $k => $codeMatch) {
-//     if (isset($argv[2])) {
-//         $content = str_replace($codeMatch, '<code style="color:red;">' . $codeMatches[1][$k] . '</code>', $content);
-//     } else {
-//         $content = str_replace($codeMatch, $codeMatches[1][$k], $content);
-//     }
-// }
