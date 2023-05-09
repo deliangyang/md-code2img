@@ -1,6 +1,7 @@
 <?php
 
 require_once __DIR__ . '/vendor/autoload.php';
+$config = include_once __DIR__ . '/config.php';
 
 use cebe\markdown\GithubMarkdown;
 
@@ -15,8 +16,16 @@ class Code2Image
 
     private $originContent;
 
+    private $server = '';
+
+    private $sign = '';
+
     public function __construct(string $filename)
     {
+        global $config;
+
+        $this->sign = $config['sign'];
+        $this->server = $config['endpoint'] . '/fileserver.php';
         $this->filename = $filename;
         $this->originContent = file_get_contents($filename);
         $this->current = md5($this->originContent);
@@ -63,9 +72,9 @@ class Code2Image
             $tmpFilename = '/tmp/' . $k . '.txt';
             file_put_contents($tmpFilename, $match);
             $filename = $k . '-' . md5($match);
-            $localFileName = './' . $k . '-' . md5($match);
-        
+            $localFileName = 'data/' . $k . '-' . md5($match);
             $localFileNameKey = $localFileName . '.png';
+
             $this->log('current local file: ' . $localFileNameKey);
             if (!file_exists($localFileNameKey)) {
                 $command = sprintf('carbon-now %s -t %s -h', $tmpFilename, $localFileName);
@@ -74,14 +83,21 @@ class Code2Image
                 $this->log(strval($output));
                 @unlink($tmpFilename);
             }
-        
+
             $content = str_replace(
                 $matches[1][$k] . $match . $matches[3][$k],
-                sprintf('![%s](%s)', $filename, $localFileNameKey),
+                sprintf('![%s](%s)', $filename, $this->upload($localFileNameKey, $localFileNameKey)),
                 $content
             );
         }
         file_put_contents($this->mTemp(), $content);
+    }
+
+    private function tobase64(string $filename): string
+    {
+        $type = pathinfo($filename, PATHINFO_EXTENSION);
+        $data = file_get_contents($filename);
+        return 'data:image/' . $type . ';base64,' . base64_encode($data);
     }
 
     private function log(string $text)
@@ -99,6 +115,20 @@ class Code2Image
         $html = file_get_contents('extra/template.html');
         $html = str_replace('__REPLACE__', $content, $html);
         return $html;
+    }
+
+    protected function upload(string $filename, string $key): string
+    {
+        $command = sprintf(
+            "curl -s -XPOST '%s' -F 'sign=%s' -F 'file=@%s' -F 'key=%s'",
+            $this->server,
+            $this->sign,
+            $filename,
+            $key
+        );
+        $this->log($command);
+        $output = `$command`;
+        return trim($output);
     }
 }
 
@@ -136,4 +166,3 @@ echo $code2Image->outputHTML();
 //         $content = str_replace($codeMatch, $codeMatches[1][$k], $content);
 //     }
 // }
-

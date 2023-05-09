@@ -6,4 +6,5 @@ init:
 	sudo apt-get install xclip
 
 serve:
-	php -S 0.0.0.0:9935 -t .
+	php -S 0.0.0.0:9930 -t .
+
