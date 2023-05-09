@@ -3,104 +3,137 @@
 require_once __DIR__ . '/vendor/autoload.php';
 
 use cebe\markdown\GithubMarkdown;
-use Qiniu\Auth;
-use Qiniu\Storage\UploadManager;
 
+class Code2Image
+{
 
-$config = require_once __DIR__ . '/config.php';
-$accessKey = $config['accessKey'];
-$secretKey = $config['secretKey'];
-$bucket = $config['bucket'];
-$domain = $config['domain'];
+    protected $filename;
 
-$auth = new Auth($accessKey, $secretKey);
-$uploadManager = new UploadManager();
+    protected $current;
 
-$keyPrefix = 'tmp/download/';
+    private $hasMermaind = false;
 
-$srcFilename = $argv[1];
+    private $originContent;
 
-$content = file_get_contents($srcFilename);
-
-$originContent = $content;
-// 包含时序图
-if (preg_match('#```mermaid#', $content)) {
-    $dirname = dirname($srcFilename);
-    `markdown_mermaid_to_images -m $srcFilename -o $dirname`;
-
-    $content = file_get_contents($srcFilename);
-    file_put_contents($srcFilename, $originContent);
-}
-
-preg_match_all('#(```[^\n]+\n)(.+)(```)#sUm', $content, $matches);
-
-preg_match_all('#!\[([^\]]+)\]\(([^\)]+)\)#', $content, $matchImages);
-
-if (3 === count($matchImages)) {
-    foreach ($matchImages[2] as $k => $matchImage) {
-        if (false !== strpos($matchImage, 'http://')
-            || false !== strpos($matchImage, 'https://')) {
-            continue;
+    public function __construct(string $filename)
+    {
+        $this->filename = $filename;
+        $this->originContent = file_get_contents($filename);
+        $this->current = md5($this->originContent);
+        if (preg_match('#```mermaid#', $this->originContent)) {
+            $this->hasMermaind = true;
         }
-        $dirname = dirname($matchImage);
-        if ($dirname !== '.') {
-            $key = $keyPrefix . str_replace('/', '', str_replace($dirname, '', $matchImage));
+    }
+
+    protected function run()
+    {
+        if ($this->hasMermaind) {
+            $this->mermaind2Image();
         } else {
-            $key = $keyPrefix . $matchImage;
+            file_put_contents($this->mTemp(), $this->originContent);
         }
-        $filename = dirname($srcFilename) . DIRECTORY_SEPARATOR . $matchImage;
+        $this->c2image();
+    }
 
-        $token = $auth->uploadToken($bucket, $key);
-        list($ret, $err) = $uploadManager->putFile($token, $key, $filename);
-
-        $content = str_replace(
-            $matchImages[0][$k],
-            sprintf('![%s](%s)', $key, $domain . $key),
-            $content
+    protected function mermaind2Image()
+    {
+        # -t dark -b transparent
+        $command = sprintf(
+            'mmdc -i %s -o %s -e png',
+            $this->filename,
+            $this->mTemp()
         );
+        $this->log($command);
+        return `$command`;
+    }
+
+    protected function mTemp(): string
+    {
+        return sprintf('data/%s.md', $this->current);
+    }
+
+    protected function c2image()
+    {
+        $content = file_get_contents($this->mTemp());
+        if (!preg_match_all('#(```[^\n]+\n)(.+)(```)#sUm', $content, $matches)) {
+            return;
+        }
+
+        foreach ($matches[2] as $k => $match) {
+            $tmpFilename = '/tmp/' . $k . '.txt';
+            file_put_contents($tmpFilename, $match);
+            $filename = $k . '-' . md5($match);
+            $localFileName = './' . $k . '-' . md5($match);
+        
+            $localFileNameKey = $localFileName . '.png';
+            $this->log('current local file: ' . $localFileNameKey);
+            if (!file_exists($localFileNameKey)) {
+                $command = sprintf('carbon-now %s -t %s -h', $tmpFilename, $localFileName);
+                $this->log($command);
+                $output = `$command`;
+                $this->log(strval($output));
+                @unlink($tmpFilename);
+            }
+        
+            $content = str_replace(
+                $matches[1][$k] . $match . $matches[3][$k],
+                sprintf('![%s](%s)', $filename, $localFileNameKey),
+                $content
+            );
+        }
+        file_put_contents($this->mTemp(), $content);
+    }
+
+    private function log(string $text)
+    {
+        fwrite(STDERR, date('[Y-m-d H:i:s]') . ' ' . $text . PHP_EOL);
+    }
+
+    public function outputHTML(): string
+    {
+        $this->run();
+        $parser = new GithubMarkdown();
+        $content = $parser->parse(file_get_contents($this->mTemp()));
+        $content = str_replace('(<em>)', '(*)', $content);
+        $content = str_replace('(</em>)', '(*)', $content);
+        $html = file_get_contents('extra/template.html');
+        $html = str_replace('__REPLACE__', $content, $html);
+        return $html;
     }
 }
 
-$noCodeBlockContent = preg_replace('#(```[^\n]+\n)(.+)(```)#sUm', '', $content);
 
-preg_match_all('#`([^`]+)`#', $noCodeBlockContent, $codeMatches);
-foreach ($codeMatches[0] as $k => $codeMatch) {
-    if (isset($argv[2])) {
-        $content = str_replace($codeMatch, '<code style="color:red;">' . $codeMatches[1][$k] . '</code>', $content);
-    } else {
-        $content = str_replace($codeMatch, $codeMatches[1][$k], $content);
-    }
-}
+$code2Image = new Code2Image($argv[1]);
+echo $code2Image->outputHTML();
+// $keyPrefix = 'tmp/download/';
 
-foreach ($matches[2] as $k => $match) {
-    file_put_contents('/tmp/' . $k . '.txt', $match);
-    $filename = $k . '-' . md5($match);
-    $localFileName = 'image/' . $k . '-' . md5($match);
+// $srcFilename = $argv[1];
 
-    $key = $filename . '.png';
-    $localFileNameKey = $localFileName . '.png';
-    var_dump('current local file: ' . $localFileNameKey);
-    if (!file_exists($localFileNameKey)) {
-        echo `carbon-now /tmp/$k.txt -t $localFileName -h`;
-        echo `rm -rf /tmp/$k.txt`;
-        $token = $auth->uploadToken($bucket, $keyPrefix . $key);
-        list($ret, $err) = $uploadManager->putFile($token, $keyPrefix . $key, $localFileNameKey);
-    }
+// $content = file_get_contents($srcFilename);
 
-    $content = str_replace(
-        $matches[1][$k] . $match . $matches[3][$k],
-        sprintf('![%s](%s)', $filename, $domain . 'tmp/download/' . $key),
-        $content
-    );
-}
+// $originContent = $content;
+// // 包含时序图
+// if (preg_match('#```mermaid#', $content)) {
+//     $dirname = dirname($srcFilename);
+//     `markdown_mermaid_to_images -m $srcFilename -o $dirname`;
 
-$parser = new GithubMarkdown();
-$content = $parser->parse($content);
-$content = str_replace('(<em>)', '(*)', $content);
-$content = str_replace('(</em>)', '(*)', $content);
+//     $content = file_get_contents($srcFilename);
+//     file_put_contents($srcFilename, $originContent);
+// }
 
-$html = file_get_contents('extra/template.html');
+// preg_match_all('#(```[^\n]+\n)(.+)(```)#sUm', $content, $matches);
 
-$html = str_replace('__REPLACE__', $content, $html);
+// preg_match_all('#!\[([^\]]+)\]\(([^\)]+)\)#', $content, $matchImages);
 
-file_put_contents('index.html', $html);
+
+// $noCodeBlockContent = preg_replace('#(```[^\n]+\n)(.+)(```)#sUm', '', $content);
+
+// preg_match_all('#`([^`]+)`#', $noCodeBlockContent, $codeMatches);
+// foreach ($codeMatches[0] as $k => $codeMatch) {
+//     if (isset($argv[2])) {
+//         $content = str_replace($codeMatch, '<code style="color:red;">' . $codeMatches[1][$k] . '</code>', $content);
+//     } else {
+//         $content = str_replace($codeMatch, $codeMatches[1][$k], $content);
+//     }
+// }
+

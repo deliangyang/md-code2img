@@ -3,7 +3,8 @@
 ### parse
 
 ```bash
-php run.php xxx.md
+mkdir -p data
+php run.php xxx.md > data/index.html
 
 cat index.html
 
